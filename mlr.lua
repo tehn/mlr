@@ -1,7 +1,4 @@
--- MLR
---
--- http://monome.org/
---   docs/norns/dust/tehn/mlr
+-- mlr
 --
 -- /////////
 -- ////
@@ -22,16 +19,16 @@
 --
 --
 
-engine.name = "SoftCut"
 
 local g = grid.connect()
 
+local fileselect = require 'fileselect'
 local pattern_time = require 'pattern_time'
 
 local TRACKS = 4
 local FADE = 0.01
 
-local CLIP_LEN_SEC = 120
+local CLIP_LEN_SEC = 60
 
 local vREC = 1
 local vCUT = 2
@@ -50,6 +47,8 @@ local quantize = 0
 
 local midi_device = midi.connect()
 local midiclocktimer
+
+local quantizer
 
 local function update_tempo()
   local t = params:get("tempo")
@@ -102,24 +101,24 @@ function event_exec(e)
   if e.t==eCUT then
     if track[e.i].loop == 1 then
       track[e.i].loop = 0
-      engine.loop_start(e.i,clip[track[e.i].clip].s)
-      engine.loop_end(e.i,clip[track[e.i].clip].e)
+      softcut.loop_start(e.i,clip[track[e.i].clip].s)
+      softcut.loop_end(e.i,clip[track[e.i].clip].e)
     end
     local cut = (e.pos/16)*clip[track[e.i].clip].l + clip[track[e.i].clip].s
-    engine.pos(e.i,cut)
-    engine.reset(e.i)
+    softcut.position(e.i,cut)
+    --softcut.reset(e.i)
     if track[e.i].play == 0 then
       track[e.i].play = 1
-      engine.start(e.i)
+      ch_toggle(e.i,1)
     end
   elseif e.t==eSTOP then
     track[e.i].play = 0
     track[e.i].pos_grid = -1
-    engine.stop(e.i)
+    ch_toggle(e.i,0)
     dirtygrid=true
   elseif e.t==eSTART then
     track[e.i].play = 1
-    engine.start(e.i)
+    ch_toggle(e.i,1)
     dirtygrid=true
   elseif e.t==eLOOP then
     track[e.i].loop = 1
@@ -129,8 +128,8 @@ function event_exec(e)
     local lstart = clip[track[e.i].clip].s + (track[e.i].loop_start-1)/16*clip[track[e.i].clip].l
     local lend = clip[track[e.i].clip].s + (track[e.i].loop_end)/16*clip[track[e.i].clip].l
     --print(">>>> "..lstart.." "..lend)
-    engine.loop_start(e.i,lstart)
-    engine.loop_end(e.i,lend)
+    softcut.loop_start(e.i,lstart)
+    softcut.loop_end(e.i,lend)
     if view == vCUT then dirtygrid=true end
   elseif e.t==eSPEED then
     track[e.i].speed = e.speed
@@ -266,24 +265,24 @@ end
 
 set_clip = function(i, x)
   track[i].play = 0
-  engine.stop(i)
+  ch_toggle(i,0)
   track[i].clip = x
-  engine.loop_start(i,clip[track[i].clip].s)
-  engine.loop_end(i,clip[track[i].clip].e)
+  softcut.loop_start(i,clip[track[i].clip].s)
+  softcut.loop_end(i,clip[track[i].clip].e)
   local q = calc_quant(i)
   local off = calc_quant_off(i, q)
-  engine.quant(i,q)
-  engine.quant_offset(i,off)
+  softcut.phase_quant(i,q)
+  -- FIXME engine.quant_offset(i,off)
   track[i].loop = 0
 end
 
 set_rec = function(n)
   if track[n].rec == 1 then
-    engine.pre(n,track[n].pre_level)
-    engine.rec(n,track[n].rec_level)
+    softcut.pre_level(n,track[n].pre_level)
+    softcut.rec_level(n,track[n].rec_level)
   else
-    engine.pre(n,1)
-    engine.rec(n,0)
+    softcut.pre_level(n,1)
+    softcut.rec_level(n,0)
   end
 end
 
@@ -307,7 +306,7 @@ enc = function(n,d)
   else _enc(n,d) end
 end
 redraw = function() _redraw() end
-g.event = function(x,y,z) _gridkey(x,y,z) end
+g.key = function(x,y,z) _gridkey(x,y,z) end
 
 set_view = function(x)
   --print("set view: "..x)
@@ -332,6 +331,11 @@ gridredraw = function()
 end
 
 
+function ch_toggle(i,x)
+  softcut.play(i,x)
+  softcut.rec(i,x)
+end
+
 
 UP1 = controlspec.new(0, 1, 'lin', 0, 1, "")
 BI1 = controlspec.new(-1, 1, 'lin', 0, 0, "")
@@ -344,45 +348,38 @@ init = function()
   params:add_number("quant_div", "quant_div", 1, 32, 4)
   params:set_action("quant_div",function() update_tempo() end)
   p = {}
+
+	audio.level_cut(1)
+	audio.level_adc_cut(1)
+
   for i=1,TRACKS do
-    engine.rec_on(i,1) -- always on!!
-    engine.pre(i,1)
-    engine.pre_lag(i,0.05)
-    engine.fade_pre(i,FADE)
-    engine.amp(i,1)
-    engine.rec(i,0)
-    engine.rec_lag(i,0.05)
-    engine.fade_rec(i,FADE)
+    softcut.enable(i,1)
 
-    engine.adc_rec(1,i,0.8)
-    engine.adc_rec(2,i,0.8)
-    engine.play_dac(i,1,1)
-    engine.play_dac(i,2,1)
+  	softcut.level_input_cut(0, i, 1.0)
+  	softcut.level_input_cut(1, i, 1.0)
 
-    engine.loop_start(i,clip[track[i].clip].s)
-    engine.loop_end(i,clip[track[i].clip].e)
-    engine.loop_on(i,1)
-    engine.quant(i,calc_quant(i))
+    softcut.play(i,0)
+    softcut.rec(i,0)
 
-    engine.fade_rec(i,0.1)
-    engine.fade(i,FADE)
-    engine.env_time(i,0.1)
+    softcut.level(i,1)
+    softcut.pan(i,0.5)
 
-    engine.rate_lag(i,0)
+    softcut.pre_level(i,1)
+    softcut.rec_level(i,0)
 
-    --engine.reset(i)
+    softcut.fade_time(i,FADE)
+    softcut.level_slew_time(i,10)
+    softcut.rate_slew_time(i,0)
 
-    p[i] = poll.set("phase_quant_"..i, function(x) phase(i,x) end)
-    p[i]:start()
+    softcut.loop_start(i,clip[track[i].clip].s)
+    softcut.loop_end(i,clip[track[i].clip].e)
+    softcut.loop(i,1)
+
 
     params:add_control(i.."vol", i.."vol", UP1)
-    params:set_action(i.."vol", function(x) engine.amp(i,x) end)
-    --params:add_control(i.."pan",BI1)
-    --params:set_action(i.."pan",
-      --function(x)
-        --engine.play_dac(i,1,math.min(1,1+x))
-        --engine.play_dac(i,2,math.min(1,1-x))
-      --end)
+    params:set_action(i.."vol", function(x) softcut.level(i,x) end)
+    params:add_control(i.."pan",BI1)
+    params:set_action(i.."pan", function(x) softcut.pan(i,0.5) end)
     params:add_control(i.."rec", i.."rec", UP1)
     params:set_action(i.."rec",
       function(x)
@@ -397,25 +394,32 @@ init = function()
       end)
     params:add_control(i.."speed_mod", i.."speed_mod", controlspec.BIPOLAR)
     params:set_action(i.."speed_mod", function() update_rate(i) end)
+
+    update_rate(i)
+
+    softcut.phase_quant(i,calc_quant(i))
   end
 
-  quantizer = metro.alloc()
+  softcut.event_phase(phase)
+  softcut.poll_start_phase()
+
+  quantizer = metro.init()
   quantizer.time = 0.125
   quantizer.count = -1
-  quantizer.callback = event_q_clock
+  quantizer.event = event_q_clock
   quantizer:start()
   --pattern_init()
   set_view(vREC)
 
-  midiclocktimer = metro.alloc()
+  midiclocktimer = metro.init()
   midiclocktimer.count = -1
-  midiclocktimer.callback = function()
+  midiclocktimer.event = function()
     if midi_device and params:get("midi_sync") == 2 then midi_device.send({248}) end
   end
   update_tempo()
   midiclocktimer:start()
 
-  gridredrawtimer = metro.alloc(function() gridredraw() end, 0.02, -1)
+  gridredrawtimer = metro.init(function() gridredraw() end, 0.02, -1)
   gridredrawtimer:start()
   dirtygrid = true
 end
@@ -443,7 +447,7 @@ update_rate = function(i)
     --print("bpmmod: "..bpmmod)
     n = n * bpmmod
   end
-  engine.rate(i,n)
+  softcut.rate(i,n)
   if view == vREC then redraw() end
 end
 
@@ -452,7 +456,7 @@ end
 gridkey_nav = function(x,z)
   if z==1 then
     if x==1 then
-      if alt == 1 then engine.clear() end
+      if alt == 1 then softcut.buffer_clear() end
       set_view(vREC)
     elseif x==2 then set_view(vCUT)
     elseif x==3 then set_view(vCLIP)
@@ -509,21 +513,21 @@ end
 
 gridredraw_nav = function()
   -- indicate view
-  g.led(view,1,15)
-  if alt==1 then g.led(16,1,9) end
-  if quantize==1 then g.led(15,1,9) end
+  g:led(view,1,15)
+  if alt==1 then g:led(16,1,9) end
+  if quantize==1 then g:led(15,1,9) end
   for i=1,4 do
     -- patterns
-    if pattern[i].rec == 1 then g.led(i+4,1,15)
-    elseif pattern[i].play == 1 then g.led(i+4,1,9)
-    elseif pattern[i].count > 0 then g.led(i+4,1,5)
-    else g.led(i+4,1,3) end
+    if pattern[i].rec == 1 then g:led(i+4,1,15)
+    elseif pattern[i].play == 1 then g:led(i+4,1,9)
+    elseif pattern[i].count > 0 then g:led(i+4,1,5)
+    else g:led(i+4,1,3) end
     -- recalls
     local b = 2
     if recall[i].recording == true then b=15
     elseif recall[i].active == true then b=11
     elseif recall[i].has_data == true then b=5 end
-    g.led(i+8,1,b)
+    g:led(i+8,1,b)
   end
 end
 
@@ -628,23 +632,23 @@ v.gridkey[vREC] = function(x, y, z)
 end
 
 v.gridredraw[vREC] = function()
-  g.all(0)
-  g.led(3,focus+1,7)
-  g.led(4,focus+1,7)
+  g:all(0)
+  g:led(3,focus+1,7)
+  g:led(4,focus+1,7)
   for i=1,TRACKS do
     local y = i+1
-    g.led(1,y,3)--rec
-    if track[i].rec == 1 then g.led(1,y,9) end
-    if track[i].tempo_map == 1 then g.led(5,y,7) end -- tempo.map
-    g.led(8,y,3)--rev
-    g.led(16,y,3)--stop
-    g.led(12,y,3)--speed=1
-    g.led(12+track[i].speed,y,9)
-    if track[i].rev == 1 then g.led(8,y,7) end
-    if track[i].play == 1 then g.led(16,y,15) end
+    g:led(1,y,3)--rec
+    if track[i].rec == 1 then g:led(1,y,9) end
+    if track[i].tempo_map == 1 then g:led(5,y,7) end -- tempo.map
+    g:led(8,y,3)--rev
+    g:led(16,y,3)--stop
+    g:led(12,y,3)--speed=1
+    g:led(12+track[i].speed,y,9)
+    if track[i].rev == 1 then g:led(8,y,7) end
+    if track[i].play == 1 then g:led(16,y,15) end
   end
   gridredraw_nav()
-  g.refresh();
+  g:refresh();
 end
 
 --------------------CUT
@@ -733,16 +737,16 @@ v.gridkey[vCUT] = function(x, y, z)
 end
 
 v.gridredraw[vCUT] = function()
-  g.all(0)
+  g:all(0)
   gridredraw_nav()
   for i=1,TRACKS do
     if track[i].loop == 1 then
       for x=track[i].loop_start,track[i].loop_end do
-        g.led(x,i+1,4)
+        g:led(x,i+1,4)
       end
     end
     if track[i].play == 1 then
-      g.led((track[i].pos_grid+1)%16, i+1, 15)
+      g:led((track[i].pos_grid+1)%16, i+1, 15)
     end
   end
   g:refresh();
@@ -763,7 +767,7 @@ function fileselect_callback(path)
       print("file > "..path.." "..clip[track[clip_sel].clip].s)
       local ch, len = sound_file_inspect(path)
       print("file length > "..len/48000)
-      engine.read(path, clip[track[clip_sel].clip].s, len/48000)
+      softcut.buffer_read_mono(path, 0, clip[track[clip_sel].clip].s, len/48000, 1, 1)
       set_clip_length(track[clip_sel].clip, len/48000)
       clip[track[clip_sel].clip].name = path:match("[^/]*$")
       -- TODO: STRIP extension
@@ -783,7 +787,7 @@ function textentry_callback(txt)
     local c_start = clip[track[clip_sel].clip].s
     local c_len = clip[track[clip_sel].clip].l
     print("SAVE " .. audio_dir .. txt .. ".aif", c_start, c_len)
-    engine.write(audio_dir..txt..".aif",c_start,c_len)
+    softcut.write(audio_dir..txt..".aif",c_start,c_len)
     clip[track[clip_sel].clip].name = txt
   else
     print("save cancel")
@@ -798,7 +802,7 @@ v.key[vCLIP] = function(n,z)
     elseif clip_actions[clip_action] == "clear" then
       local c_start = clip[track[clip_sel].clip].s * 48000
       print("clear_start: " .. c_start)
-      engine.clear_range(c_start, CLIP_LEN_SEC * 48000) -- two minutes
+      --softcut.clear_range(c_start, CLIP_LEN_SEC * 48000) -- two minutes
       clip[track[clip_sel].clip].name = '-'
       redraw()
     elseif clip_actions[clip_action] == "save" then
@@ -869,10 +873,10 @@ v.gridkey[vCLIP] = function(x, y, z)
 end
 
 v.gridredraw[vCLIP] = function()
-  g.all(0)
+  g:all(0)
   gridredraw_nav()
-  for i=1,16 do g.led(i,clip_sel+1,4) end
-  for i=1,TRACKS do g.led(track[i].clip,i+1,10) end
+  for i=1,16 do g:led(i,clip_sel+1,4) end
+  for i=1,TRACKS do g:led(track[i].clip,i+1,10) end
   g:refresh();
 end
 
@@ -917,7 +921,7 @@ v.gridkey[vTIME] = function(x, y, z)
 end
 
 v.gridredraw[vTIME] = function()
-  g.all(0)
+  g:all(0)
   gridredraw_nav()
   g:refresh();
 end
