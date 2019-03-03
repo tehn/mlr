@@ -363,6 +363,7 @@ init = function()
 
     softcut.level(i,1)
     softcut.pan(i,0.5)
+    softcut.buffer(i,1)
 
     softcut.pre_level(i,1)
     softcut.rec_level(i,0)
