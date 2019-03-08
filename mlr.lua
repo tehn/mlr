@@ -379,8 +379,8 @@ init = function()
 
     params:add_control(i.."vol", i.."vol", UP1)
     params:set_action(i.."vol", function(x) softcut.level(i,x) end)
-    params:add_control(i.."pan",BI1)
-    params:set_action(i.."pan", function(x) softcut.pan(i,0.5) end)
+    params:add_control(i.."pan", i.."pan", BI1)
+    params:set_action(i.."pan", function(x) softcut.pan(i,x) end)
     params:add_control(i.."rec", i.."rec", UP1)
     params:set_action(i.."rec",
       function(x)
