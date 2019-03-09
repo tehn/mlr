@@ -355,8 +355,8 @@ init = function()
   for i=1,TRACKS do
     softcut.enable(i,1)
 
-  	softcut.level_input_cut(0, i, 1.0)
   	softcut.level_input_cut(1, i, 1.0)
+  	softcut.level_input_cut(2, i, 1.0)
 
     softcut.play(i,0)
     softcut.rec(i,0)
