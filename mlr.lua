@@ -25,7 +25,7 @@ local g = grid.connect()
 local fileselect = require 'fileselect'
 local pattern_time = require 'pattern_time'
 
-local TRACKS = 4
+local TRACKS = 6
 local FADE = 0.01
 
 local CLIP_LEN_SEC = 60
@@ -338,6 +338,7 @@ end
 
 
 UP1 = controlspec.new(0, 1, 'lin', 0, 1, "")
+cs_PAN = controlspec.new(0, 1, 'lin', 0, 0.5, "")
 BI1 = controlspec.new(-1, 1, 'lin', 0, 0, "")
 
 -------------------- init
@@ -379,7 +380,7 @@ init = function()
 
     params:add_control(i.."vol", i.."vol", UP1)
     params:set_action(i.."vol", function(x) softcut.level(i,x) end)
-    params:add_control(i.."pan", i.."pan", BI1)
+    params:add_control(i.."pan", i.."pan", cs_PAN)
     params:set_action(i.."pan", function(x) softcut.pan(i,x) end)
     params:add_control(i.."rec", i.."rec", UP1)
     params:set_action(i.."rec",
