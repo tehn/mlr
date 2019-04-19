@@ -274,7 +274,7 @@ set_clip = function(i, x)
   local q = calc_quant(i)
   local off = calc_quant_off(i, q)
   softcut.phase_quant(i,q)
-  softcut.phase_offset(i,off)
+  --softcut.phase_offset(i,off)
   track[i].loop = 0
 end
 
