@@ -274,7 +274,7 @@ set_clip = function(i, x)
   local q = calc_quant(i)
   local off = calc_quant_off(i, q)
   softcut.phase_quant(i,q)
-  --softcut.phase_offset(i,off)
+  softcut.phase_offset(i,off)
   track[i].loop = 0
 end
 
@@ -340,6 +340,7 @@ end
 
 
 UP1 = controlspec.new(0, 1, 'lin', 0, 1, "")
+UP0 = controlspec.new(0, 1, 'lin', 0, 0, "")
 cs_PAN = controlspec.new(0, 1, 'lin', 0, 0.5, "")
 BI1 = controlspec.new(-1, 1, 'lin', 0, 0, "")
 
@@ -350,12 +351,15 @@ init = function()
   params:set_action("tempo", function() update_tempo() end)
   params:add_number("quant_div", "quant_div", 1, 32, 4)
   params:set_action("quant_div",function() update_tempo() end)
+
   p = {}
 
 	audio.level_cut(1)
 	audio.level_adc_cut(1)
 
   for i=1,TRACKS do
+    params:add_separator()
+
     softcut.enable(i,1)
 
   	softcut.level_input_cut(1, i, 1.0)
@@ -399,13 +403,13 @@ init = function()
     params:add_control(i.."speed_mod", i.."speed_mod", controlspec.BIPOLAR)
     params:set_action(i.."speed_mod", function() update_rate(i) end)
 
+    params:add_control(i.."rate_slew", i.."rate_slew", UP0)
+    params:set_action(i.."rate_slew", function(x) softcut.rate_slew_time(i,x) end)
+
     update_rate(i)
 
     softcut.phase_quant(i,calc_quant(i))
   end
-
-  softcut.event_phase(phase)
-  softcut.poll_start_phase()
 
   quantizer = metro.init()
   quantizer.time = 0.125
@@ -423,9 +427,17 @@ init = function()
   update_tempo()
   midiclocktimer:start()
 
+  softcut.event_phase(phase)
+  softcut.poll_start_phase()
+
   gridredrawtimer = metro.init(function() gridredraw() end, 0.02, -1)
   gridredrawtimer:start()
   dirtygrid = true
+
+  screenredrawtimer = metro.init(function() redraw() end, 0.1, -1)
+  screenredrawtimer:start()
+
+  params:bang()
 end
 
 -- poll callback
@@ -452,7 +464,6 @@ update_rate = function(i)
     n = n * bpmmod
   end
   softcut.rate(i,n)
-  if view == vREC then redraw() end
 end
 
 
