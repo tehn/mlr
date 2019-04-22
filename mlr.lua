@@ -438,6 +438,8 @@ init = function()
   screenredrawtimer:start()
 
   params:bang()
+
+  grid.add = draw_grid_connected
 end
 
 -- poll callback
@@ -941,11 +943,16 @@ v.gridredraw[vTIME] = function()
   g:refresh();
 end
 
-
+function draw_grid_connected()
+  dirtygrid=true
+  gridredraw()
+end
 
 function cleanup()
   for i=1,4 do
     pattern[i]:stop()
     pattern[i] = nil
   end
+
+  grid.add = function() end
 end
