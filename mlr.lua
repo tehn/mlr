@@ -31,7 +31,9 @@ local pattern_time = require 'pattern_time'
 local TRACKS = 6
 local FADE = 0.01
 
-local CLIP_LEN_SEC = 60
+-- softcut has ~350s per buffer
+local CLIP_LEN_SEC = 45
+local MAX_CLIPS = 7
 
 local vREC = 1
 local vCUT = 2
@@ -789,8 +791,10 @@ function fileselect_callback(path)
       print("file > "..path.." "..clip[track[clip_sel].clip].s)
       local ch, len = sound_file_inspect(path)
       print("file length > "..len/48000)
-      softcut.buffer_read_mono(path, 0, clip[track[clip_sel].clip].s, len/48000, 1, 1)
-      set_clip_length(track[clip_sel].clip, len/48000)
+      --softcut.buffer_read_mono(path, 0, clip[track[clip_sel].clip].s, len/48000, 1, 1)
+      softcut.buffer_read_mono(path, 0, clip[track[clip_sel].clip].s, CLIP_LEN_SEC, 1, 1)
+      local l = math.min(len/48000, CLIP_LEN_SEC)
+      set_clip_length(track[clip_sel].clip, l)
       clip[track[clip_sel].clip].name = path:match("[^/]*$")
       -- TODO: STRIP extension
       set_clip(clip_sel,track[clip_sel].clip)
@@ -891,7 +895,7 @@ end
 
 v.gridkey[vCLIP] = function(x, y, z)
   if y == 1 then gridkey_nav(x,z)
-  elseif z == 1 and y < TRACKS+2 then
+  elseif z == 1 and y < TRACKS+2 and x < MAX_CLIPS+1 then
     clip_sel = y-1
     set_clip(clip_sel,x)
     redraw()
