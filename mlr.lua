@@ -377,7 +377,7 @@ init = function()
     softcut.rec_level(i,0)
 
     softcut.fade_time(i,FADE)
-    softcut.level_slew_time(i,10)
+    softcut.level_slew_time(i,0.1)
     softcut.rate_slew_time(i,0)
 
     softcut.loop_start(i,clip[track[i].clip].s)
@@ -407,6 +407,9 @@ init = function()
     params:add_control(i.."rate_slew", i.."rate_slew", UP0)
     params:set_action(i.."rate_slew", function(x) softcut.rate_slew_time(i,x) end)
 
+    params:add_control(i.."level_slew", i.."level_slew", controlspec.new(0.0,10.0,"lin",0.1,0.1,""))
+    params:set_action(i.."level_slew", function(x) softcut.level_slew_time(i,x) end)
+
     update_rate(i)
 
     set_clip(i,i)
@@ -432,6 +435,8 @@ init = function()
   gridredrawtimer = metro.init(function() gridredraw() end, 0.02, -1)
   gridredrawtimer:start()
   dirtygrid = true
+
+  grid.add = draw_grid_connected
 
   screenredrawtimer = metro.init(function() redraw() end, 0.1, -1)
   screenredrawtimer:start()
@@ -948,11 +953,16 @@ v.gridredraw[vTIME] = function()
   g:refresh();
 end
 
-
+function draw_grid_connected()
+  dirtygrid=true
+  gridredraw()
+end
 
 function cleanup()
   for i=1,4 do
     pattern[i]:stop()
     pattern[i] = nil
   end
+
+  grid.add = function() end
 end
