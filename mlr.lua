@@ -25,6 +25,7 @@
 local g = grid.connect()
 
 local fileselect = require 'fileselect'
+local textentry = require 'textentry'
 local pattern_time = require 'pattern_time'
 
 local TRACKS = 6
@@ -408,7 +409,8 @@ init = function()
 
     update_rate(i)
 
-    softcut.phase_quant(i,calc_quant(i))
+    set_clip(i,i)
+    --softcut.phase_quant(i,calc_quant(i))
   end
 
   quantizer = metro.init()
@@ -427,9 +429,6 @@ init = function()
   update_tempo()
   midiclocktimer:start()
 
-  softcut.event_phase(phase)
-  softcut.poll_start_phase()
-
   gridredrawtimer = metro.init(function() gridredraw() end, 0.02, -1)
   gridredrawtimer:start()
   dirtygrid = true
@@ -438,6 +437,9 @@ init = function()
   screenredrawtimer:start()
 
   params:bang()
+
+  softcut.event_phase(phase)
+  softcut.poll_start_phase()
 end
 
 -- poll callback
@@ -793,6 +795,7 @@ function fileselect_callback(path)
     end
 
     -- TODO re-set_clip any tracks with this clip loaded
+    screenredrawtimer:start()
     redraw()
   end
 end
@@ -801,18 +804,21 @@ function textentry_callback(txt)
   if txt then
     local c_start = clip[track[clip_sel].clip].s
     local c_len = clip[track[clip_sel].clip].l
-    print("SAVE " .. audio_dir .. txt .. ".aif", c_start, c_len)
-    softcut.write(audio_dir..txt..".aif",c_start,c_len)
+    print("SAVE " .. _path.audio .. "mlr/" .. txt .. ".wav", c_start, c_len)
+    util.make_dir(_path.audio .. "mlr")
+    softcut.buffer_write_mono(_path.audio.."mlr/"..txt..".wav",c_start,c_len,1)
     clip[track[clip_sel].clip].name = txt
   else
     print("save cancel")
   end
+  screenredrawtimer:start()
   redraw()
 end
 
 v.key[vCLIP] = function(n,z)
   if n==2 and z==0 then
     if clip_actions[clip_action] == "load" then
+      screenredrawtimer:stop()
       fileselect.enter(os.getenv("HOME").."/dust/audio", fileselect_callback)
     elseif clip_actions[clip_action] == "clear" then
       local c_start = clip[track[clip_sel].clip].s * 48000
@@ -821,6 +827,7 @@ v.key[vCLIP] = function(n,z)
       clip[track[clip_sel].clip].name = '-'
       redraw()
     elseif clip_actions[clip_action] == "save" then
+      screenredrawtimer:stop()
       textentry.enter(textentry_callback, "mlr-" .. (math.random(9000)+1000))
     end
   elseif n==3 and z==1 then
