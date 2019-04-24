@@ -429,7 +429,7 @@ init = function()
   midiclocktimer = metro.init()
   midiclocktimer.count = -1
   midiclocktimer.event = function()
-    if midi_device and params:get("midi_sync") == 2 then midi_device.send({248}) end
+    if midi_device and params:get("midi_sync") == 2 then midi_device:send({248}) end
   end
   update_tempo()
   midiclocktimer:start()
