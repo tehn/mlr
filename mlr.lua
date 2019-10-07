@@ -344,7 +344,7 @@ end
 
 UP1 = controlspec.new(0, 1, 'lin', 0, 1, "")
 UP0 = controlspec.new(0, 1, 'lin', 0, 0, "")
-cs_PAN = controlspec.new(0, 1, 'lin', 0, 0.5, "")
+cs_PAN = controlspec.new(-1, 1, 'lin', 0, 0, "")
 BI1 = controlspec.new(-1, 1, 'lin', 0, 0, "")
 
 -------------------- init
@@ -372,7 +372,7 @@ init = function()
     softcut.rec(i,0)
 
     softcut.level(i,1)
-    softcut.pan(i,0.5)
+    softcut.pan(i,0)
     softcut.buffer(i,1)
 
     softcut.pre_level(i,1)
