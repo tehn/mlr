@@ -1,5 +1,5 @@
 -- mlr
--- v2.0.1 @tehn
+-- v2.2.1 @tehn
 -- llllllll.co/t/21145
 --
 -- /////////
@@ -89,6 +89,7 @@ function event_q(e)
 end
 
 function event_q_clock()
+  if params:get("crow_clock") == 2 then crow.output[1]:execute() end
   if #quantize_events > 0 then
     for k,e in pairs(quantize_events) do
       for i=1,4 do
@@ -349,12 +350,19 @@ BI1 = controlspec.new(-1, 1, 'lin', 0, 0, "")
 
 -------------------- init
 init = function()
-  params:add_option("midi_sync", "midi_sync", {"off", "on"})
+  params:add_option("midi_sync", "midi sync", {"off", "on"})
   params:add_number("tempo", "tempo", 40, 240, 92)
   params:set_action("tempo", function() update_tempo() end)
-  params:add_number("quant_div", "quant_div", 1, 32, 4)
+  params:add_number("quant_div", "quant div", 1, 32, 4)
   params:set_action("quant_div",function() update_tempo() end)
-
+  params:add{type = "option", id = "crow_clock", name = "crow quant clock out",
+    options = {"off","on"},
+    action = function(value)
+      if value == 2 then
+        crow.output[1].action = "{to(5,0),to(5,0.05),to(0,0)}"
+      end
+    end}
+ 
   p = {}
 
 	audio.level_cut(1)
