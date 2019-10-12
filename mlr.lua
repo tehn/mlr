@@ -47,6 +47,7 @@ local eSTART = 3
 local eLOOP = 4
 local eSPEED = 5
 local eREV = 6
+local ePATTERN = 7
 
 local quantize = 0
 
@@ -69,15 +70,19 @@ local function update_tempo()
   midiclocktimer.time = 60/24/t
 end
 
+function event_record(e)
+  for i=1,4 do
+    pattern[i]:watch(e)
+  end
+  recall_watch(e)
+end
+
 
 function event(e)
   if quantize == 1 then
     event_q(e)
   else
-    for i=1,4 do
-      pattern[i]:watch(e)
-    end
-    recall_watch(e)
+    if e.t ~= ePATTERN then event_record(e) end
     event_exec(e)
   end
 end
@@ -92,10 +97,7 @@ function event_q_clock()
   if params:get("crow_clock") == 2 then crow.output[1]:execute() end
   if #quantize_events > 0 then
     for k,e in pairs(quantize_events) do
-      for i=1,4 do
-        pattern[i]:watch(e)
-      end
-      recall_watch(e)
+      if e.t ~= ePATTERN then event_record(e) end
       event_exec(e)
     end
     quantize_events = {}
@@ -151,6 +153,13 @@ function event_exec(e)
     --if track[e.i].rev == 1 then n = -n end
     --engine.rate(e.i,n)
     if view == vREC then dirtygrid=true end
+  elseif e.t==ePATTERN then
+    if e.action=="stop" then pattern[e.i]:stop()
+    elseif e.action=="start" then pattern[e.i]:start()
+    elseif e.action=="rec_stop" then pattern[e.i]:rec_stop()
+    elseif e.action=="rec_start" then pattern[e.i]:rec_start()
+    elseif e.action=="clear" then pattern[e.i]:clear()
+    end
   end
 end
 
@@ -495,17 +504,18 @@ gridkey_nav = function(x,z)
     elseif x>4 and x<9 then
       local i = x - 4
       if alt == 1 then
-        pattern[i]:rec_stop()
-        pattern[i]:stop()
-        pattern[i]:clear()
+        local e={t=ePATTERN,i=i,action="rec_stop"} event(e)
+        local e={t=ePATTERN,i=i,action="stop"} event(e)
+        local e={t=ePATTERN,i=i,action="clear"} event(e)
       elseif pattern[i].rec == 1 then
-        pattern[i]:rec_stop()
-        pattern[i]:start()
+        local e={t=ePATTERN,i=i,action="rec_stop"} event(e)
+        local e={t=ePATTERN,i=i,action="start"} event(e)
       elseif pattern[i].count == 0 then
-        pattern[i]:rec_start()
+        local e={t=ePATTERN,i=i,action="rec_start"} event(e)
       elseif pattern[i].play == 1 then
-        pattern[i]:stop()
-      else pattern[i]:start()
+        local e={t=ePATTERN,i=i,action="stop"} event(e)
+      else 
+        local e={t=ePATTERN,i=i,action="start"} event(e)
       end
     elseif x>8 and x<13 then
       local i = x-8
