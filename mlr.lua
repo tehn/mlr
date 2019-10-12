@@ -795,7 +795,7 @@ clip_clear_mult = 3
 
 function fileselect_callback(path)
   if path ~= "cancel" then
-    if path:find(".aif") or path:find(".wav") then
+    if audio.file_info(path) ~= nil then
       print("file > "..path.." "..clip[track[clip_sel].clip].s)
       local ch, len = sound_file_inspect(path)
       print("file length > "..len/48000)
