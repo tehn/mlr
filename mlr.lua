@@ -807,7 +807,7 @@ function fileselect_callback(path)
   if path ~= "cancel" then
     if audio.file_info(path) ~= nil then
       print("file > "..path.." "..clip[track[clip_sel].clip].s)
-      local ch, len = sound_file_inspect(path)
+      local ch, len = audio.file_info(path)
       print("file length > "..len/48000)
       --softcut.buffer_read_mono(path, 0, clip[track[clip_sel].clip].s, len/48000, 1, 1)
       softcut.buffer_read_mono(path, 0, clip[track[clip_sel].clip].s, CLIP_LEN_SEC, 1, 1)
@@ -915,9 +915,11 @@ v.gridkey[vCLIP] = function(x, y, z)
   if y == 1 then gridkey_nav(x,z)
   elseif z == 1 and y < TRACKS+2 and x < MAX_CLIPS+1 then
     clip_sel = y-1
-    set_clip(clip_sel,x)
-    redraw()
-    dirtygrid=true
+    if x ~= track[clip_sel].clip then
+      set_clip(clip_sel,x)
+      redraw()
+      dirtygrid=true
+    end
   end
 end
 
