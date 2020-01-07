@@ -744,6 +744,7 @@ v.gridkey[vCUT] = function(x, y, z)
   --print(held[y])
 
   if y == 1 then gridkey_nav(x,z)
+  elseif y == 8 then return
   else
     i = y-1
     if z == 1 then
