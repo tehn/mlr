@@ -402,7 +402,7 @@ init = function()
     softcut.loop_start(i,clip[track[i].clip].s)
     softcut.loop_end(i,clip[track[i].clip].e)
     softcut.loop(i,1)
-
+    softcut.position(i, clip[track[i].clip].s)
 
     params:add_control(i.."vol", i.."vol", UP1)
     params:set_action(i.."vol", function(x) softcut.level(i,x) end)
