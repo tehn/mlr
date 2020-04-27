@@ -66,6 +66,18 @@ local function update_tempo()
   end
 end
 
+local prev_tempo = params:get("clock_tempo")
+function clock_update_tempo ()
+  while true do
+    clock.sync(1/24)
+    local curr_tempo = params:get("clock_tempo")
+    if prev_tempo ~= curr_tempo then
+      prev_tempo = curr_tempo
+      update_tempo()
+    end
+  end
+end
+
 function event_record(e)
   for i=1,4 do
     pattern[i]:watch(e)
@@ -447,6 +459,8 @@ init = function()
 
   softcut.event_phase(phase)
   softcut.poll_start_phase()
+
+  clock.run(clock_update_tempo)
 end
 
 -- poll callback
