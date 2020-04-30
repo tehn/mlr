@@ -51,13 +51,10 @@ local ePATTERN = 7
 
 local quantize = 0
 
-local midi_device = midi.connect()
-local midiclocktimer
-
 local quantizer
 
 local function update_tempo()
-  local t = params:get("tempo")
+  local t = params:get("clock_tempo")
   local d = params:get("quant_div")
   local interval = (60/t) / d
   print("q > "..interval)
@@ -67,7 +64,18 @@ local function update_tempo()
       update_rate(i)
     end
   end
-  midiclocktimer.time = 60/24/t
+end
+
+local prev_tempo = params:get("clock_tempo")
+function clock_update_tempo ()
+  while true do
+    clock.sync(1/24)
+    local curr_tempo = params:get("clock_tempo")
+    if prev_tempo ~= curr_tempo then
+      prev_tempo = curr_tempo
+      update_tempo()
+    end
+  end
 end
 
 function event_record(e)
@@ -94,7 +102,6 @@ function event_q(e)
 end
 
 function event_q_clock()
-  if params:get("crow_clock") == 2 then crow.output[1]:execute() end
   if #quantize_events > 0 then
     for k,e in pairs(quantize_events) do
       if e.t ~= ePATTERN then event_record(e) end
@@ -359,18 +366,9 @@ BI1 = controlspec.new(-1, 1, 'lin', 0, 0, "")
 
 -------------------- init
 init = function()
-  params:add_option("midi_sync", "midi sync", {"off", "on"})
-  params:add_number("tempo", "tempo", 40, 240, 92)
-  params:set_action("tempo", function() update_tempo() end)
+  params:set_action("clock_tempo", function() update_tempo() end)
   params:add_number("quant_div", "quant div", 1, 32, 4)
   params:set_action("quant_div",function() update_tempo() end)
-  params:add{type = "option", id = "crow_clock", name = "crow quant clock out",
-    options = {"off","on"},
-    action = function(value)
-      if value == 2 then
-        crow.output[1].action = "{to(5,0),to(5,0.05),to(0,0)}"
-      end
-    end}
  
   p = {}
 
@@ -446,13 +444,7 @@ init = function()
   --pattern_init()
   set_view(vREC)
 
-  midiclocktimer = metro.init()
-  midiclocktimer.count = -1
-  midiclocktimer.event = function()
-    if midi_device and params:get("midi_sync") == 2 then midi_device:send({248}) end
-  end
   update_tempo()
-  midiclocktimer:start()
 
   gridredrawtimer = metro.init(function() gridredraw() end, 0.02, -1)
   gridredrawtimer:start()
@@ -467,6 +459,8 @@ init = function()
 
   softcut.event_phase(phase)
   softcut.poll_start_phase()
+
+  clock.run(clock_update_tempo)
 end
 
 -- poll callback
@@ -488,7 +482,7 @@ update_rate = function(i)
   local n = math.pow(2,track[i].speed + params:get(i.."speed_mod"))
   if track[i].rev == 1 then n = -n end
   if track[i].tempo_map == 1 then
-    local bpmmod = params:get("tempo") / clip[track[i].clip].bpm
+    local bpmmod = params:get("clock_tempo") / clip[track[i].clip].bpm
     --print("bpmmod: "..bpmmod)
     n = n * bpmmod
   end
@@ -865,7 +859,7 @@ v.key[vCLIP] = function(n,z)
       textentry.enter(textentry_callback, "mlr-" .. (math.random(9000)+1000))
     end
   elseif n==3 and z==1 then
-    clip_reset(clip_sel,60/params:get("tempo")*(2^(clip_clear_mult-2)))
+    clip_reset(clip_sel,60/params:get("clock_tempo")*(2^(clip_clear_mult-2)))
     set_clip(clip_sel,track[clip_sel].clip)
     update_rate(clip_sel)
   end
@@ -948,7 +942,7 @@ end
 
 v.enc[vTIME] = function(n,d)
   if n==2 then
-    params:delta("tempo",d)
+    params:delta("clock_tempo",d)
   elseif n==3 then
     params:delta("quant_div",d)
   end
@@ -962,7 +956,7 @@ v.redraw[vTIME] = function()
   screen.text("TIME")
   if viewinfo[vTIME] == 0 then
     screen.move(10,50)
-    screen.text(params:get("tempo"))
+    screen.text(params:get("clock_tempo"))
     screen.move(70,50)
     screen.text(params:get("quant_div"))
     screen.level(3)
