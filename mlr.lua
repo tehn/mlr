@@ -369,7 +369,7 @@ init = function()
   params:set_action("clock_tempo", function() update_tempo() end)
   params:add_number("quant_div", "quant div", 1, 32, 4)
   params:set_action("quant_div",function() update_tempo() end)
- 
+
   p = {}
 
 	audio.level_cut(1)
@@ -511,7 +511,7 @@ gridkey_nav = function(x,z)
         local e={t=ePATTERN,i=i,action="rec_start"} event(e)
       elseif pattern[i].play == 1 then
         local e={t=ePATTERN,i=i,action="stop"} event(e)
-      else 
+      else
         local e={t=ePATTERN,i=i,action="start"} event(e)
       end
     elseif x>8 and x<13 then
@@ -804,9 +804,9 @@ clip_clear_mult = 3
 function fileselect_callback(path, c)
   print("FILESELECT "..c)
   if path ~= "cancel" and path ~= "" then
-    if audio.file_info(path) ~= nil then
+    local ch, len = audio.file_info(path)
+    if ch > 0 and len > 0 then
       print("file > "..path.." "..clip[track[c].clip].s)
-      local ch, len = audio.file_info(path)
       print("file length > "..len/48000)
       --softcut.buffer_read_mono(path, 0, clip[track[clip_sel].clip].s, len/48000, 1, 1)
       softcut.buffer_read_mono(path, 0, clip[track[c].clip].s, CLIP_LEN_SEC, 1, 1)
