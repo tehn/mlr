@@ -324,7 +324,7 @@ end
 
 key = function(n,z) _key(n,z) end
 enc = function(n,d)
-  if n==1 then mix:delta("output",d)
+  if n==1 then params:delta("output_level",d)
   else _enc(n,d) end
 end
 redraw = function() _redraw() end
