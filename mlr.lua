@@ -629,6 +629,7 @@ end
 
 v.gridkey[vREC] = function(x, y, z)
   if y == 1 then gridkey_nav(x,z)
+  elseif y == 8 then return
   else
     if z == 1 then
       i = y-1
