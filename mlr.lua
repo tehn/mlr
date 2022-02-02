@@ -51,18 +51,20 @@ local ePATTERN = 7
 
 local quantize = 0
 
-local quantizer
-
 local function update_tempo()
-  local t = params:get("clock_tempo")
   local d = params:get("quant_div")
-  local interval = (60/t) / d
-  print("q > "..interval)
-  quantizer.time = interval
+  div = d / 4
   for i=1,TRACKS do
     if track[i].tempo_map == 1 then
       update_rate(i)
     end
+  end
+end
+
+function update_q_clock()
+  while true do
+    clock.sync(1 / div)
+    event_q_clock()
   end
 end
 
@@ -436,12 +438,8 @@ init = function()
     --softcut.phase_quant(i,calc_quant(i))
   end
 
-  quantizer = metro.init()
-  quantizer.time = 0.125
-  quantizer.count = -1
-  quantizer.event = event_q_clock
-  quantizer:start()
   --pattern_init()
+
   set_view(vREC)
 
   update_tempo()
@@ -535,8 +533,10 @@ gridkey_nav = function(x,z)
       end
     elseif x==15 and alt == 0 then
       quantize = 1 - quantize
-      if quantize == 0 then quantizer:stop()
-      else quantizer:start()
+      if quantize == 0 then
+        clock.cancel(quantizer)
+      else
+        quantizer = clock.run(update_q_clock)
       end
     elseif x==15 and alt == 1 then
       set_view(vTIME)
@@ -780,14 +780,22 @@ end
 v.gridredraw[vCUT] = function()
   g:all(0)
   gridredraw_nav()
-  for i=1,TRACKS do
+  for i = 1, TRACKS do
     if track[i].loop == 1 then
-      for x=track[i].loop_start,track[i].loop_end do
-        g:led(x,i+1,4)
+      for x = track[i].loop_start, track[i].loop_end do
+        g:led(x, i + 1, 4)
       end
     end
     if track[i].play == 1 then
-      g:led((track[i].pos_grid+1)%16, i+1, 15)
+      if track[i].rev == 0 then
+        g:led((track[i].pos_grid + 1) %16, i + 1, 15)
+      elseif track[i].rev == 1 then
+        if track[i].loop == 1 then
+          g:led((track[i].pos_grid + 1) %16, i + 1, 15)
+        else
+          g:led((track[i].pos_grid + 2) %16, i + 1, 15)
+        end
+      end
     end
   end
   g:refresh();
