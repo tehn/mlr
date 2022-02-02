@@ -21,7 +21,6 @@
 --
 --
 
-
 local g = grid.connect()
 
 local fileselect = require 'fileselect'
@@ -51,14 +50,16 @@ local ePATTERN = 7
 
 local quantize = 0
 
-local quantizer
+function update_q_clock()
+  while true do
+    clock.sync(1 / div)
+    event_q_clock()
+  end
+end
 
 local function update_tempo()
-  local t = params:get("clock_tempo")
   local d = params:get("quant_div")
-  local interval = (60/t) / d
-  print("q > "..interval)
-  quantizer.time = interval
+  div = d / 4
   for i=1,TRACKS do
     if track[i].tempo_map == 1 then
       update_rate(i)
@@ -128,7 +129,7 @@ function event_exec(e)
     end
   elseif e.t==eSTOP then
     track[e.i].play = 0
-    track[e.i].pos_grid = -1
+    --track[e.i].pos_grid = -1
     ch_toggle(e.i,0)
     dirtygrid=true
   elseif e.t==eSTART then
@@ -139,10 +140,10 @@ function event_exec(e)
     track[e.i].loop = 1
     track[e.i].loop_start = e.loop_start
     track[e.i].loop_end = e.loop_end
-    --print("LOOP "..track[e.i].loop_start.." "..track[e.i].loop_end)
+    print("LOOP "..track[e.i].loop_start.." "..track[e.i].loop_end)
     local lstart = clip[track[e.i].clip].s + (track[e.i].loop_start-1)/16*clip[track[e.i].clip].l
     local lend = clip[track[e.i].clip].s + (track[e.i].loop_end)/16*clip[track[e.i].clip].l
-    --print(">>>> "..lstart.." "..lend)
+    print(">>>> "..lstart.." "..lend)
     softcut.loop_start(e.i,lstart)
     softcut.loop_end(e.i,lend)
     if view == vCUT then dirtygrid=true end
@@ -267,8 +268,6 @@ for i=1,16 do
   set_clip_length(i,4)
 end
 
-
-
 calc_quant = function(i)
   local q = (clip[track[i].clip].l/16)
   print("q > "..q)
@@ -321,10 +320,9 @@ for i = 1,8 do
   second[i] = 0
 end
 
-
 key = function(n,z) _key(n,z) end
 enc = function(n,d)
-  if n==1 then params:delta("output_level",d)
+  if n==1 then mix:delta("output",d)
   else _enc(n,d) end
 end
 redraw = function() _redraw() end
@@ -366,6 +364,7 @@ BI1 = controlspec.new(-1, 1, 'lin', 0, 0, "")
 
 -------------------- init
 init = function()
+
   params:set_action("clock_tempo", function() update_tempo() end)
   params:add_number("quant_div", "quant div", 1, 32, 4)
   params:set_action("quant_div",function() update_tempo() end)
@@ -418,7 +417,7 @@ init = function()
         track[i].pre_level = x
         set_rec(i)
       end)
-    params:add_control(i.."speed_mod", i.."speed_mod", controlspec.BIPOLAR)
+    params:add_control(i.."speed_mod", i.."speed_mod", controlspec.new(-1,1,"lin",1/12,0,""))
     params:set_action(i.."speed_mod", function() update_rate(i) end)
 
     params:add_control(i.."rate_slew", i.."rate_slew", UP0)
@@ -434,13 +433,9 @@ init = function()
     update_rate(i)
     set_clip(i,i)
     --softcut.phase_quant(i,calc_quant(i))
+
   end
 
-  quantizer = metro.init()
-  quantizer.time = 0.125
-  quantizer.count = -1
-  quantizer.event = event_q_clock
-  quantizer:start()
   --pattern_init()
   set_view(vREC)
 
@@ -535,8 +530,10 @@ gridkey_nav = function(x,z)
       end
     elseif x==15 and alt == 0 then
       quantize = 1 - quantize
-      if quantize == 0 then quantizer:stop()
-      else quantizer:start()
+      if quantize == 0 then
+        clock.cancel(quantizer)
+      else
+        quantizer = clock.run(update_q_clock)
       end
     elseif x==15 and alt == 1 then
       set_view(vTIME)
@@ -629,7 +626,6 @@ end
 
 v.gridkey[vREC] = function(x, y, z)
   if y == 1 then gridkey_nav(x,z)
-  elseif y == 8 then return
   else
     if z == 1 then
       i = y-1
