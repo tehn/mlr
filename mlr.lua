@@ -858,10 +858,12 @@ v.key[vCLIP] = function(n,z)
       fileselect.enter(os.getenv("HOME").."/dust/audio",
         function(n) fileselect_callback(n,clip_sel) end)
     elseif clip_actions[clip_action] == "clear" then
-      local c_start = clip[track[clip_sel].clip].s * 48000
-      print("clear_start: " .. c_start)
-      --softcut.clear_range(c_start, CLIP_LEN_SEC * 48000) -- two minutes
+      softcut.buffer_clear_region_channel(1, clip[track[clip_sel].clip].s, clip[track[clip_sel].clip].s + CLIP_LEN_SEC)
+      set_clip_length(track[clip_sel].clip, 4)
+      set_clip(clip_sel,track[clip_sel].clip)
+      update_rate(clip_sel)
       clip[track[clip_sel].clip].name = '-'
+      print("clip "..track[clip_sel].clip.." cleared")
       redraw()
     elseif clip_actions[clip_action] == "save" then
       screenredrawtimer:stop()
