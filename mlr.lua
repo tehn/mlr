@@ -404,31 +404,38 @@ init = function()
     softcut.loop(i,1)
     softcut.position(i, clip[track[i].clip].s)
 
-    params:add_control(i.."vol", i.."vol", UP1)
+    params:add_control(i.."vol", i.." vol", UP1)
     params:set_action(i.."vol", function(x) softcut.level(i,x) end)
-    params:add_control(i.."pan", i.."pan", cs_PAN)
+    params:add_control(i.."pan", i.." pan", cs_PAN)
     params:set_action(i.."pan", function(x) softcut.pan(i,x) end)
-    params:add_control(i.."rec", i.."rec", UP1)
+    params:add_control(i.."rec", i.." rec", UP1)
     params:set_action(i.."rec",
       function(x)
         track[i].rec_level = x
         set_rec(i)
       end)
-    params:add_control(i.."pre", i.."pre", controlspec.UNIPOLAR)
+    params:add_control(i.."pre", i.." pre", controlspec.UNIPOLAR)
     params:set_action(i.."pre",
       function(x)
         track[i].pre_level = x
         set_rec(i)
       end)
-    params:add_control(i.."speed_mod", i.."speed_mod", controlspec.BIPOLAR)
+    params:add_control(i.."speed_mod", i.." speed_mod", controlspec.BIPOLAR)
     params:set_action(i.."speed_mod", function() update_rate(i) end)
 
-    params:add_control(i.."rate_slew", i.."rate_slew", UP0)
+    params:add_control(i.."rate_slew", i.." rate_slew", UP0)
     params:set_action(i.."rate_slew", function(x) softcut.rate_slew_time(i,x) end)
+    
+    params:add_option(i.."speed", i.." speed", {-3, -2, -1, 0, 1, 2, 3}, 4)
+    params:set_action(i.."speed", function(n) e = {} e.t = eSPEED e.i = i e.speed = n - 4 event(e) end)
+    
+    params:add_option(i.."direction", i.." direction", {"fwd", "rev"}, 1)
+    params:set_action(i.."direction", function(n) e = {} e.t = eREV e.i = i e.rev = n - 1 event(e) end)
 
-    params:add_control(i.."level_slew", i.."level_slew", controlspec.new(0.0,10.0,"lin",0.1,0.1,""))
+    params:add_control(i.."level_slew", i.." level_slew", controlspec.new(0.0,10.0,"lin",0.1,0.1,""))
     params:set_action(i.."level_slew", function(x) softcut.level_slew_time(i,x) end)
-    params:add_file(i.."file", i.."file", "")
+    
+    params:add_file(i.."file", i.." file", "")
     params:set_action(i.."file",
       --function(n) print("FILESELECT > "..i.." "..n) end)
       function(n) fileselect_callback(n,i) end)
@@ -659,12 +666,11 @@ v.gridkey[vREC] = function(x, y, z)
         end
       elseif x>8 and x<16 and y<TRACKS+2 then
         local n = x-12
-        e = {} e.t = eSPEED e.i = i e.speed = n
-        event(e)
+        params:set(i.."speed", x - 8)
       elseif x==8 and y<TRACKS+2 then
-        local n = 1 - track[i].rev
-        e = {} e.t = eREV e.i = i e.rev = n
-        event(e)
+        track[i].rev = 1 - track[i].rev
+        local n = 1 + track[i].rev
+        params:set(i.."direction", n)
       end
       dirtygrid=true
     end
