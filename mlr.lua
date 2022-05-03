@@ -69,7 +69,7 @@ function update_q_clock()
 end
 
 local prev_tempo = params:get("clock_tempo")
-function clock_update_tempo ()
+function clock_update_tempo()
   while true do
     clock.sync(1/24)
     local curr_tempo = params:get("clock_tempo")
@@ -428,10 +428,13 @@ init = function()
 
     params:add_control(i.."level_slew", i.."level_slew", controlspec.new(0.0,10.0,"lin",0.1,0.1,""))
     params:set_action(i.."level_slew", function(x) softcut.level_slew_time(i,x) end)
-    params:add_file(i.."file", i.."file", "")
+
+    -- file loading via clipview only. conflicts with session save / pset callback
+    --[[params:add_file(i.."file", i.."file", "")
     params:set_action(i.."file",
       --function(n) print("FILESELECT > "..i.." "..n) end)
       function(n) fileselect_callback(n,i) end)
+      ]]--
 
     update_rate(i)
     set_clip(i,i)
@@ -459,6 +462,106 @@ init = function()
   softcut.poll_start_phase()
 
   clock.run(clock_update_tempo)
+
+  -- pset callback
+  params.action_write = function(filename, name)
+    os.execute("mkdir -p "..norns.state.data.."sessions/")
+
+    -- save buffer content
+    softcut.buffer_write_mono(norns.state.data.."sessions/"..name.."_buffer.wav", 0, -1, 1)
+
+    -- save data in one big table
+    local sesh_data = {}
+
+    -- clip data
+    for i = 1, 8 do
+      sesh_data[i] = {}
+      sesh_data[i].clip_name = clip[i].name
+      sesh_data[i].clip_e = clip[i].e
+      sesh_data[i].clip_l = clip[i].l
+      sesh_data[i].clip_bpm = clip[i].bpm
+    end
+
+    -- track data
+    for i = 1, 6 do
+      sesh_data[i].track_speed = track[i].speed
+      sesh_data[i].track_rev = track[i].rev
+      sesh_data[i].track_tempo_map = track[i].tempo_map
+      sesh_data[i].track_loop = track[i].loop
+      sesh_data[i].track_loop_start = track[i].loop_start
+      sesh_data[i].track_loop_end = track[i].loop_end
+      sesh_data[i].track_clip = track[i].clip
+    end
+
+    -- pattern and recall data
+    for i = 1, 4 do
+      sesh_data[i].pattern_count = pattern[i].count
+      sesh_data[i].pattern_time = pattern[i].time
+      sesh_data[i].pattern_event = pattern[i].event
+      sesh_data[i].pattern_time_factor = pattern[i].time_factor
+      sesh_data[i].recall_has_data = recall[i].has_data
+      sesh_data[i].recall_event = recall[i].event
+    end
+
+    -- and save the chunk
+    tab.save(sesh_data, norns.state.data.."sessions/"..name.."_session.data")
+    print("saved session: '"..filename.."' as '"..name.."'")
+  end
+
+  params.action_read = function(filename)
+    local loaded_file = io.open(filename, "r")
+    if loaded_file then
+      io.input(loaded_file)
+      local pset_id = string.sub(io.read(), 4, -1)
+      io.close(loaded_file)
+
+      -- load buffer content
+      softcut.buffer_clear ()
+      softcut.buffer_read_mono(norns.state.data.."sessions/"..pset_id.."_buffer.wav", 0, 0, -1, 1, 1)
+
+      -- load sesh data
+      sesh_data = tab.load(norns.state.data.."sessions/"..pset_id.."_session.data")
+      -- load clip data
+      for i = 1, 8 do
+        clip[i].name = sesh_data[i].clip_name
+        clip[i].e = sesh_data[i].clip_e
+        clip[i].l = sesh_data[i].clip_l
+        clip[i].bpm = sesh_data[i].clip_bpm
+      end
+
+      -- load track data
+      for i = 1, 6 do
+        track[i].clip = sesh_data[i].track_clip
+        set_clip(i, track[i].clip)
+        track[i].tempo_map = sesh_data[i].track_tempo_map
+        if track[i].tempo_map == 1 then update_rate(i) end
+        e = {} e.t = eREV e.i = i e.rev = sesh_data[i].track_rev event(e)
+        e = {} e.t = eSPEED e.i = i e.speed = sesh_data[i].track_speed event(e)
+        if sesh_data[i].track_loop == 1 then
+          e = {}
+          e.t = eLOOP
+          e.i = i
+          e.loop = 1
+          e.loop_start = sesh_data[i].track_loop_start
+          e.loop_end = sesh_data[i].track_loop_end
+          event(e)
+        end
+      end
+
+      -- load pattern and recall data
+      for i = 1, 4 do
+        pattern[i].count = sesh_data[i].pattern_count
+        pattern[i].time = {table.unpack(sesh_data[i].pattern_time)}
+        pattern[i].event = {table.unpack(sesh_data[i].pattern_event)}
+        pattern[i].time_factor = sesh_data[i].pattern_time_factor
+        recall[i].has_data = sesh_data[i].recall_has_data
+        recall[i].event = {table.unpack(sesh_data[i].recall_event)}
+      end
+      dirtygrid = true
+      print("loaded session: '"..filename.."'")
+    end
+  end
+
 end
 
 -- poll callback
@@ -825,7 +928,7 @@ function fileselect_callback(path, c)
       -- TODO: STRIP extension
       set_clip(c,track[c].clip)
       update_rate(c)
-      params:set(c.."file",path)
+      --params:set(c.."file",path) -- conflicts with session save / pset callback
     else
       print("not a sound file")
     end
