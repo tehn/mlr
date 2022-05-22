@@ -463,12 +463,17 @@ init = function()
 
   clock.run(clock_update_tempo)
 
+
   -- pset callback
   params.action_write = function(filename, name)
-    os.execute("mkdir -p "..norns.state.data.."sessions/")
+
+    local pset_string = string.sub(filename, string.len(filename) - 6, -1)
+    local number = pset_string:gsub(".pset", "")
+
+    os.execute("mkdir -p "..norns.state.data.."sessions/"..number.."/")
 
     -- save buffer content
-    softcut.buffer_write_mono(norns.state.data.."sessions/"..name.."_buffer.wav", 0, -1, 1)
+    softcut.buffer_write_mono(norns.state.data.."sessions/"..number.."/"..name.."_buffer.wav", 0, -1, 1)
 
     -- save data in one big table
     local sesh_data = {}
@@ -504,7 +509,8 @@ init = function()
     end
 
     -- and save the chunk
-    tab.save(sesh_data, norns.state.data.."sessions/"..name.."_session.data")
+    tab.save(sesh_data, norns.state.data.."sessions/"..number.."/"..name.."_session.data")
+
     print("saved session: '"..filename.."' as '"..name.."'")
   end
 
@@ -515,12 +521,16 @@ init = function()
       local pset_id = string.sub(io.read(), 4, -1)
       io.close(loaded_file)
 
+      local pset_string = string.sub(filename, string.len(filename) - 6, -1)
+      local number = pset_string:gsub(".pset", "")
+
       -- load buffer content
       softcut.buffer_clear ()
-      softcut.buffer_read_mono(norns.state.data.."sessions/"..pset_id.."_buffer.wav", 0, 0, -1, 1, 1)
+      softcut.buffer_read_mono(norns.state.data.."sessions/"..number.."/"..pset_id.."_buffer.wav", 0, 0, -1, 1, 1)
 
       -- load sesh data
-      sesh_data = tab.load(norns.state.data.."sessions/"..pset_id.."_session.data")
+      sesh_data = tab.load(norns.state.data.."sessions/"..number.."/"..pset_id.."_session.data")
+
       -- load clip data
       for i = 1, 8 do
         clip[i].name = sesh_data[i].clip_name
@@ -545,6 +555,10 @@ init = function()
           e.loop_start = sesh_data[i].track_loop_start
           e.loop_end = sesh_data[i].track_loop_end
           event(e)
+        elseif sesh_data[i].track_loop == 0 then
+          track[i].loop = 0
+          softcut.loop_start(i, clip[track[i].clip].s)
+          softcut.loop_end(i, clip[track[i].clip].e)
         end
       end
 
@@ -556,6 +570,10 @@ init = function()
         pattern[i].time_factor = sesh_data[i].pattern_time_factor
         recall[i].has_data = sesh_data[i].recall_has_data
         recall[i].event = {table.unpack(sesh_data[i].recall_event)}
+        local e = {t = ePATTERN, i = i, action = "stop"} event(e)
+        if pattern[i].rec == 1 then
+          local e = {t = ePATTERN, i = i, action = "rec_stop"} event(e)
+        end
       end
       dirtygrid = true
       print("loaded session: '"..filename.."'")
