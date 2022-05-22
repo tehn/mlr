@@ -51,6 +51,8 @@ local ePATTERN = 7
 
 local quantize = 0
 
+local lag = 0.06 -- 60ms lag-time between mute and playback
+
 local function update_tempo()
   local d = params:get("quant_div")
   div = d / 4
@@ -127,16 +129,34 @@ function event_exec(e)
     if track[e.i].play == 0 then
       track[e.i].play = 1
       ch_toggle(e.i,1)
+      clock.run(
+      function()
+        clock.sleep(lag)
+        softcut.level(e.i, track[e.i].vol)
+      end
+    )
     end
-  elseif e.t==eSTOP then
-    track[e.i].play = 0
-    track[e.i].pos_grid = -1
-    ch_toggle(e.i,0)
-    dirtygrid=true
-  elseif e.t==eSTART then
+  elseif e.t == eSTOP then
+    softcut.level(e.i, 0)
+    clock.run(
+      function()
+        clock.sleep(lag)
+        track[e.i].play = 0
+        track[e.i].pos_grid = -1
+        ch_toggle(e.i,0)
+        dirtygrid=true
+      end
+    )
+  elseif e.t == eSTART then
     track[e.i].play = 1
     ch_toggle(e.i,1)
-    dirtygrid=true
+    clock.run(
+      function()
+        clock.sleep(lag)
+        softcut.level(e.i, track[e.i].vol)
+        dirtygrid = true
+      end
+    )
   elseif e.t==eLOOP then
     track[e.i].loop = 1
     track[e.i].loop_start = e.loop_start
@@ -231,6 +251,7 @@ for i=1,TRACKS do
   track[i].head = (i-1)%4+1
   track[i].play = 0
   track[i].rec = 0
+  track[i].vol = 1
   track[i].rec_level = 1
   track[i].pre_level = 0
   track[i].loop = 0
@@ -405,7 +426,7 @@ init = function()
     softcut.position(i, clip[track[i].clip].s)
 
     params:add_control(i.."vol", i.."vol", UP1)
-    params:set_action(i.."vol", function(x) softcut.level(i,x) end)
+    params:set_action(i.."vol", function(x) track[i].vol = x softcut.level(i,track[i].vol) end)
     params:add_control(i.."pan", i.."pan", cs_PAN)
     params:set_action(i.."pan", function(x) softcut.pan(i,x) end)
     params:add_control(i.."rec", i.."rec", UP1)
