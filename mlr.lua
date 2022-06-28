@@ -1000,7 +1000,7 @@ v.key[vCLIP] = function(n,z)
       fileselect.enter(os.getenv("HOME").."/dust/audio",
         function(n) fileselect_callback(n,clip_sel) end)
     elseif clip_actions[clip_action] == "clear" then
-      softcut.buffer_clear_region_channel(1, clip[track[clip_sel].clip].s, clip[track[clip_sel].clip].s + CLIP_LEN_SEC)
+      softcut.buffer_clear_region_channel(1, clip[track[clip_sel].clip].s, CLIP_LEN_SEC)
       set_clip_length(track[clip_sel].clip, 4)
       set_clip(clip_sel,track[clip_sel].clip)
       update_rate(clip_sel)
