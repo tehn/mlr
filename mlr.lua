@@ -123,7 +123,7 @@ function event_exec(e)
       softcut.loop_start(e.i,clip[track[e.i].clip].s)
       softcut.loop_end(e.i,clip[track[e.i].clip].e)
     end
-    local cut = (e.pos/16)*clip[track[e.i].clip].l + clip[track[e.i].clip].s
+    local cut = (e.pos/g.device.cols)*clip[track[e.i].clip].l + clip[track[e.i].clip].s
     softcut.position(e.i,cut)
     --softcut.reset(e.i)
     if track[e.i].play == 0 then
@@ -162,8 +162,8 @@ function event_exec(e)
     track[e.i].loop_start = e.loop_start
     track[e.i].loop_end = e.loop_end
     --print("LOOP "..track[e.i].loop_start.." "..track[e.i].loop_end)
-    local lstart = clip[track[e.i].clip].s + (track[e.i].loop_start-1)/16*clip[track[e.i].clip].l
-    local lend = clip[track[e.i].clip].s + (track[e.i].loop_end)/16*clip[track[e.i].clip].l
+    local lstart = clip[track[e.i].clip].s + (track[e.i].loop_start-1)/g.device.cols*clip[track[e.i].clip].l
+    local lend = clip[track[e.i].clip].s + (track[e.i].loop_end)/g.device.cols*clip[track[e.i].clip].l
     --print(">>>> "..lstart.." "..lend)
     softcut.loop_start(e.i,lstart)
     softcut.loop_end(e.i,lend)
@@ -192,11 +192,26 @@ function event_exec(e)
   end
 end
 
+function is_grid_monobright()
+  if util.string_starts(g.name, 'monome 64 m64')
+    or util.string_starts(g.name, 'monome 128 m128')
+    or util.string_starts(g.name, 'monome 256 m256') then
+    return true
+  end
+  return false
+end
 
+function grid_level(v)
+  if is_grid_monobright() then
+    return 15
+  else
+    return v
+  end
+end
 
 ------ patterns
 pattern = {}
-for i=1,4 do
+  for i=1,4 do
   pattern[i] = pattern_time.new()
   pattern[i].process = event_exec
 end
@@ -256,7 +271,7 @@ for i=1,TRACKS do
   track[i].pre_level = 0
   track[i].loop = 0
   track[i].loop_start = 0
-  track[i].loop_end = 16
+  track[i].loop_end = g.device.cols
   track[i].clip = i
   track[i].pos = 0
   track[i].pos_grid = -1
@@ -283,7 +298,7 @@ clip_reset = function(i, length)
 end
 
 clip = {}
-for i=1,16 do
+for i=1,g.device.cols do
   clip[i] = {}
   clip[i].s = 2 + (i-1)*CLIP_LEN_SEC
   clip[i].name = "-"
@@ -293,7 +308,7 @@ end
 
 
 calc_quant = function(i)
-  local q = (clip[track[i].clip].l/16)
+  local q = (clip[track[i].clip].l/g.device.cols)
   print("q > "..q)
   return q
 end
@@ -609,7 +624,7 @@ phase = function(n, x)
   local pp = ((x - clip[track[n].clip].s) / clip[track[n].clip].l)-- * 16 --TODO 16=div
   --x = math.floor(track[n].pos*16)
   --if n==1 then print("> "..x.." "..pp) end
-  x = math.floor(pp * 16)
+  x = math.floor(pp * g.device.cols)
   if x ~= track[n].pos_grid then
     track[n].pos_grid = x
     if view == vCUT then dirtygrid=true end
@@ -631,7 +646,69 @@ end
 
 
 
-gridkey_nav = function(x,z)
+gridkey_nav_8_cols = function(x,y,z)
+  if z==1 then
+    if x==1 and y==1 then
+      if alt == 1 then softcut.buffer_clear() end
+        set_view(vREC)
+      elseif x==2 and y==1 then set_view(vCUT)
+      elseif x==3 and y==1 then set_view(vCLIP)
+      elseif x>3 and x<7 and y==1 then
+        local i = x - 3
+        if alt == 1 then
+          local e={t=ePATTERN,i=i,action="rec_stop"} event(e)
+          local e={t=ePATTERN,i=i,action="stop"} event(e)
+          local e={t=ePATTERN,i=i,action="clear"} event(e)
+        elseif pattern[i].rec == 1 then
+          local e={t=ePATTERN,i=i,action="rec_stop"} event(e)
+          local e={t=ePATTERN,i=i,action="start"} event(e)
+        elseif pattern[i].count == 0 then
+          local e={t=ePATTERN,i=i,action="rec_start"} event(e)
+        elseif pattern[i].play == 1 then
+           local e={t=ePATTERN,i=i,action="stop"} event(e)
+        else
+          local e={t=ePATTERN,i=i,action="start"} event(e)
+      end
+    elseif y==8 and x>0 and x<4 then
+      local i = x
+        if alt == 1 then
+          -- print("recall: clear "..i)
+          recall[i].event = {}
+          recall[i].recording = false
+          recall[i].has_data = false
+          recall[i].active = false
+        elseif recall[i].recording == true then
+          -- print("recall: stop")
+          recall[i].recording = false
+        elseif recall[i].has_data == false then
+          -- print("recall: rec")
+          recall[i].recording = true
+        elseif recall[i].has_data == true then
+          -- print("recall: exec")
+          recall_exec(i)
+          recall[i].active = true
+        end
+    elseif x==7 and alt == 0 and y==1 then
+      quantize = 1 - quantize
+      if quantize == 0 then
+        clock.cancel(quantizer)
+      else
+        quantizer = clock.run(update_q_clock)
+      end
+    elseif x==7 and alt == 1 and y==1 then
+      set_view(vTIME)
+    elseif x==8 and y==1 then alt = 1
+    end
+  elseif z==0 then
+    if x==8 and y==1 then alt = 0
+    elseif x==7 and view == vTIME and y==1 then set_view(-1)
+    elseif x<4 and y==8 then recall[x].active = false
+    end
+  end
+  dirtygrid=true
+end
+
+gridkey_nav_16_cols = function(x,z)
   if z==1 then
     if x==1 then
       if alt == 1 then softcut.buffer_clear() end
@@ -692,7 +769,37 @@ gridkey_nav = function(x,z)
   dirtygrid=true
 end
 
-gridredraw_nav = function()
+gridkey_nav = function(x,y,z)
+  if g.device.cols == 16 then
+    gridkey_nav_16_cols(x,z)
+  elseif g.device.cols == 8 then
+    gridkey_nav_8_cols(x,y,z)
+  end
+end
+
+gridredraw_nav_8_cols = function()
+  -- indicate view
+  g:led(view,1,15)
+  if alt==1 then g:led(8,1,grid_level(9)) end
+  if quantize==1 then g:led(7,1,grid_level(9)) end
+  for i=1,3 do
+    -- patterns
+    if pattern[i].rec == 1 then g:led(i+3,1,15)
+    elseif pattern[i].play == 1 then g:led(i+3,1,9)
+    elseif pattern[i].count > 0 then g:led(i+3,1,15)
+    else g:led(i+3,1,1) end
+    -- recalls
+    local b = 2
+    if recall[i].recording == true then b=15
+      -- print("rec!")
+    elseif recall[i].active == true then b=15
+      -- print("active")
+    elseif recall[i].has_data == true then b=15 end
+    g:led(i,8,b)
+  end
+end
+
+gridredraw_nav_16_cols = function()
   -- indicate view
   g:led(view,1,15)
   if alt==1 then g:led(16,1,9) end
@@ -709,6 +816,14 @@ gridredraw_nav = function()
     elseif recall[i].active == true then b=11
     elseif recall[i].has_data == true then b=5 end
     g:led(i+8,1,b)
+  end
+end
+
+gridredraw_nav = function()
+  if g.device.cols == 16 then
+    gridredraw_nav_16_cols()
+  elseif g.device.cols == 8 then
+    gridredraw_nav_8_cols()
   end
 end
 
@@ -770,12 +885,12 @@ v.redraw[vREC] = function()
 end
 
 v.gridkey[vREC] = function(x, y, z)
-  if y == 1 then gridkey_nav(x,z)
+  if y == 1 or (g.device.cols == 8 and y == 8) then gridkey_nav(x,y,z)
   elseif y == 8 then return
   else
     if z == 1 then
       i = y-1
-      if x>2 and x<8 then
+      if (g.device.cols == 16 and (x>2 and x<8)) or (g.device.cols == 8 and (x>1 and x<4 and y<8)) then
         if alt == 1 then
           track[i].tempo_map = 1 - track[i].tempo_map
           update_rate(i)
@@ -787,7 +902,7 @@ v.gridkey[vREC] = function(x, y, z)
         track[i].rec = 1 - track[i].rec
         print("REC "..track[i].rec)
         set_rec(i)
-      elseif x==16 and y<TRACKS+2 then
+      elseif x==g.device.cols and y<TRACKS+2 then
         if track[i].play == 1 then
           e = {}
           e.t = eSTOP
@@ -799,11 +914,11 @@ v.gridkey[vREC] = function(x, y, z)
           e.i = i
           event(e)
         end
-      elseif x>8 and x<16 and y<TRACKS+2 then
-        local n = x-12
+      elseif x>g.device.cols/2 and x<g.device.cols and y<TRACKS+2 then
+        local n = x - (g.device.cols/2 + g.device.cols/4)
         e = {} e.t = eSPEED e.i = i e.speed = n
         event(e)
-      elseif x==8 and y<TRACKS+2 then
+      elseif x==g.device.cols/2 and y<TRACKS+2 then
         local n = 1 - track[i].rev
         e = {} e.t = eREV e.i = i e.rev = n
         event(e)
@@ -815,19 +930,23 @@ end
 
 v.gridredraw[vREC] = function()
   g:all(0)
-  g:led(3,focus+1,7)
-  g:led(4,focus+1,7)
+  if g.device.cols == 16 then
+    g:led(3,focus+1,7)
+    g:led(4,focus+1,7)
+  elseif g.device.cols == 8 then
+    g:led(2,focus+1,15)
+  end
   for i=1,TRACKS do
     local y = i+1
     g:led(1,y,3)--rec
-    if track[i].rec == 1 then g:led(1,y,9) end
-    if track[i].tempo_map == 1 then g:led(5,y,7) end -- tempo.map
-    g:led(8,y,3)--rev
-    g:led(16,y,3)--stop
-    g:led(12,y,3)--speed=1
-    g:led(12+track[i].speed,y,9)
-    if track[i].rev == 1 then g:led(8,y,7) end
-    if track[i].play == 1 then g:led(16,y,15) end
+    if track[i].rec == 1 then g:led(1,y,grid_level(9)) end
+    if track[i].tempo_map == 1 then g:led(5,y,grid_level(7)) end -- tempo.map
+    g:led(g.device.cols/2,y,3)--rev
+    g:led(g.device.cols,y,3)--stop
+    g:led(g.device.cols/2 + g.device.cols/4,y,3)--speed=1
+    g:led(g.device.cols/2 + g.device.cols/4+track[i].speed,y,9)
+    if track[i].rev == 1 then g:led(g.device.cols/2,y,grid_level(7)) end
+    if track[i].play == 1 then g:led(g.device.cols,y,15) end
   end
   gridredraw_nav()
   g:refresh();
@@ -880,7 +999,7 @@ v.gridkey[vCUT] = function(x, y, z)
   if held[y] > heldmax[y] then heldmax[y] = held[y] end
   --print(held[y])
 
-  if y == 1 then gridkey_nav(x,z)
+  if y == 1 or (g.device.cols == 8 and y == 8) then gridkey_nav(x,y,z)
   elseif y == 8 then return
   else
     i = y-1
@@ -930,12 +1049,12 @@ v.gridredraw[vCUT] = function()
     end
     if track[i].play == 1 then
       if track[i].rev == 0 then
-        g:led((track[i].pos_grid + 1) %16, i + 1, 15)
+        g:led((track[i].pos_grid + 1) %g.device.cols, i + 1, 15)
       elseif track[i].rev == 1 then
         if track[i].loop == 1 then
-          g:led((track[i].pos_grid + 1) %16, i + 1, 15)
+          g:led((track[i].pos_grid + 1) %g.device.cols, i + 1, 15)
         else
-          g:led((track[i].pos_grid + 2) %16, i + 1, 15)
+          g:led((track[i].pos_grid + 2) %g.device.cols, i + 1, 15)
         end
       end
     end
@@ -1066,7 +1185,7 @@ v.redraw[vCLIP] = function()
 end
 
 v.gridkey[vCLIP] = function(x, y, z)
-  if y == 1 then gridkey_nav(x,z)
+  if y == 1 or (g.device.cols == 8 and y == 8) then gridkey_nav(x,y,z)
   elseif z == 1 and y < TRACKS+2 and x < MAX_CLIPS+1 then
     clip_sel = y-1
     if x ~= track[clip_sel].clip then
@@ -1080,7 +1199,7 @@ end
 v.gridredraw[vCLIP] = function()
   g:all(0)
   gridredraw_nav()
-  for i=1,16 do g:led(i,clip_sel+1,4) end
+  for i=1,g.device.cols do g:led(i,clip_sel+1,4) end
   for i=1,TRACKS do g:led(track[i].clip,i+1,10) end
   g:refresh();
 end
@@ -1122,7 +1241,7 @@ v.redraw[vTIME] = function()
 end
 
 v.gridkey[vTIME] = function(x, y, z)
-  if y == 1 then gridkey_nav(x,z) end
+  if y == 1 or (g.device.cols == 8 and y == 8) then gridkey_nav(x,y,z) end
 end
 
 v.gridredraw[vTIME] = function()
