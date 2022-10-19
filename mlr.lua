@@ -33,7 +33,7 @@ local FADE = 0.01
 
 -- softcut has ~350s per buffer
 local CLIP_LEN_SEC = 45
-local MAX_CLIPS = 7
+local MAX_CLIPS = 16
 
 local vREC = 1
 local vCUT = 2
@@ -994,6 +994,7 @@ function textentry_callback(txt)
 end
 
 v.key[vCLIP] = function(n,z)
+  print("norns key set clip triggered v.key[vCLIP]")
   if n==2 and z==0 then
     if clip_actions[clip_action] == "load" then
       screenredrawtimer:stop()
@@ -1066,12 +1067,16 @@ v.redraw[vCLIP] = function()
 end
 
 v.gridkey[vCLIP] = function(x, y, z)
+  print("grid key set clip triggered v.gridkey[vCLIP]")
   if y == 1 then gridkey_nav(x,z)
   elseif z == 1 and y < TRACKS+2 and x < MAX_CLIPS+1 then
     clip_sel = y-1
+    print("clip-sel", clip_sel)
+    print("x", x)
     if x ~= track[clip_sel].clip then
       set_clip(clip_sel,x)
     end
+    print(" track[clip-sel].clip value: ", track[clip_sel].clip)
     redraw()
     dirtygrid=true
   end
