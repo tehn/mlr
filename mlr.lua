@@ -32,8 +32,10 @@ local TRACKS = 6
 local FADE = 0.01
 
 -- softcut has ~350s per buffer
-local CLIP_LEN_SEC = 45
+local BUFFER_SIZE = 350
 local MAX_CLIPS = 16
+local GROUPS = 6
+local CLIP_LEN_SEC = math.floor(BUFFER_SIZE/MAX_CLIPS)
 
 local vREC = 1
 local vCUT = 2
@@ -91,6 +93,8 @@ end
 
 
 function event(e)
+  print("event trigger")
+  
   if quantize == 1 then
     event_q(e)
   else
@@ -117,13 +121,25 @@ end
 
 
 function event_exec(e)
-  if e.t==eCUT then
+  if e.t==eCUT then -- WIP
+    print("eCUT event triggered")
+    tab.print(e)
     if track[e.i].loop == 1 then
       track[e.i].loop = 0
       softcut.loop_start(e.i,clip[track[e.i].clip].s)
       softcut.loop_end(e.i,clip[track[e.i].clip].e)
     end
-    local cut = (e.pos/16)*clip[track[e.i].clip].l + clip[track[e.i].clip].s
+    print("track[e.i].clip", track[e.i].clip)
+    local cut = (e.pos/16)*clip[track[e.i].clip].l + clip[track[e.i].clip].s -- i think the cut variable is a position in the buffer?
+    print("cut", cut)
+    print("clip[track[e.i].clip]:")
+    tab.print(clip[track[e.i].clip])
+    -- e: 
+    -- name:
+    -- s:
+    -- bpm:
+    -- l:
+    
     softcut.position(e.i,cut)
     --softcut.reset(e.i)
     if track[e.i].play == 0 then
@@ -263,10 +279,15 @@ for i=1,TRACKS do
   track[i].speed = 0
   track[i].rev = 0
   track[i].tempo_map = 0
+  if i <= GROUPS then
+  track[i].group = i
+  else track[i].group = i - GROUPS
+    end
 end
 
 
 set_clip_length = function(i, len)
+  print("set_clip_length", i, len)
   clip[i].l = len
   clip[i].e = clip[i].s + len
   local bpm = 60 / len
@@ -311,9 +332,10 @@ end
 set_clip = function(i, x)
   --track[i].play = 0
   --ch_toggle(i,0)
-  track[i].clip = x
-  softcut.loop_start(i,clip[track[i].clip].s)
-  softcut.loop_end(i,clip[track[i].clip].e)
+  print("set_clip")
+  track[i].clip = x -- we assign the track number i (1 to 6), to the clip number x (1 to 16)
+  softcut.loop_start(track[i].group,clip[track[i].clip].s)
+  softcut.loop_end(track[i].group,clip[track[i].clip].e)
   local q = calc_quant(i)
   local off = calc_quant_off(i, q)
   softcut.phase_quant(i,q)
@@ -336,7 +358,7 @@ heldmax = {}
 done = {}
 first = {}
 second = {}
-for i = 1,8 do
+for i = 1,TRACKS+2 do
   held[i] = 0
   heldmax[i] = 0
   done[i] = 0
@@ -771,7 +793,7 @@ end
 
 v.gridkey[vREC] = function(x, y, z)
   if y == 1 then gridkey_nav(x,z)
-  elseif y == 8 then return
+  elseif y == TRACKS+2 then return
   else
     if z == 1 then
       i = y-1
@@ -881,7 +903,7 @@ v.gridkey[vCUT] = function(x, y, z)
   --print(held[y])
 
   if y == 1 then gridkey_nav(x,z)
-  elseif y == 8 then return
+  elseif y == TRACKS+2 then return
   else
     i = y-1
     if z == 1 then
